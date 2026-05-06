@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API Spec Editor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#ffffff;--bg2:#f7f7f5;--bg3:#f0efe9;
+  --text:#1a1a18;--text2:#6b6b67;--text3:#9a9a96;
+  --border:rgba(0,0,0,0.12);--border2:rgba(0,0,0,0.2);
+  --radius:8px;--radius-lg:12px;
+  --mono:'JetBrains Mono','Fira Code',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --green:#1D9E75;--green-bg:#e1f5ee;
+  --blue:#185FA5;--blue-bg:#e6f1fb;
+  --red:#A32D2D;--red-bg:#fcebeb;
+  --amber:#BA7517;--amber-bg:#faeeda;
+  --purple:#534AB7;--purple-bg:#EEEDFE;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#1c1c1a;--bg2:#242422;--bg3:#2c2c2a;
+  --text:#f0efe9;--text2:#a0a09a;--text3:#6b6b67;
+  --border:rgba(255,255,255,0.1);--border2:rgba(255,255,255,0.18);
+  --green:#5DCAA5;--green-bg:#085041;
+  --blue:#85B7EB;--blue-bg:#0C447C;
+  --red:#F09595;--red-bg:#791F1F;
+  --amber:#EF9F27;--amber-bg:#633806;
+  --purple:#AFA9EC;--purple-bg:#26215C;
+}}
+html,body{height:100%;}
+body{font-family:var(--sans);background:var(--bg3);color:var(--text);display:flex;flex-direction:column;min-height:100vh;}
+
+/* HEADER */
+header{background:var(--bg);border-bottom:0.5px solid var(--border);padding:0 14px;height:48px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo{font-size:14px;font-weight:500;letter-spacing:-0.01em;margin-right:4px;}
+.badge{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--bg2);color:var(--text2);border:0.5px solid var(--border);}
+#saveStatus{font-size:11px;padding:3px 9px;border-radius:4px;font-weight:500;transition:all .3s;}
+.header-spacer{flex:1;}
+.header-right{display:flex;align-items:center;gap:6px;}
+
+/* SPEC SWITCHER */
+#specSwitcher{display:flex;align-items:center;gap:0;border:0.5px solid var(--border2);border-radius:var(--radius);overflow:hidden;max-width:340px;}
+.spec-tab{font-size:12px;padding:4px 12px;cursor:pointer;color:var(--text2);background:var(--bg);border:none;border-right:0.5px solid var(--border);font-family:var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;transition:background .15s;}
+.spec-tab:last-child{border-right:none;}
+.spec-tab:hover{background:var(--bg2);}
+.spec-tab.active{background:var(--bg2);color:var(--text);font-weight:500;}
+.spec-tab-add{font-size:16px;padding:2px 10px;cursor:pointer;color:var(--text3);background:var(--bg);border:none;border-left:0.5px solid var(--border);font-family:var(--sans);transition:all .15s;}
+.spec-tab-add:hover{color:var(--text);background:var(--bg2);}
+
+/* TABS */
+.tabs{display:flex;background:var(--bg2);border-bottom:0.5px solid var(--border);flex-shrink:0;}
+.tab{font-size:12px;font-weight:500;padding:8px 16px;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--sans);transition:all .15s;}
+.tab:hover{color:var(--text);background:var(--bg);}
+.tab.active{color:var(--text);border-bottom-color:var(--text);}
+
+main{flex:1;display:flex;overflow:hidden;height:calc(100vh - 48px);}
+.left-col{width:46%;display:flex;flex-direction:column;border-right:0.5px solid var(--border);overflow:hidden;}
+.right-col{width:54%;display:flex;flex-direction:column;overflow:hidden;}
+.pane{flex:1;overflow-y:auto;}
+
+.btn{font-family:var(--sans);font-size:12px;padding:5px 11px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg);color:var(--text);cursor:pointer;transition:background .15s;white-space:nowrap;}
+.btn:hover{background:var(--bg2);}
+.btn:active{transform:scale(0.98);}
+.btn-primary{background:var(--text);color:var(--bg);border-color:transparent;}
+.btn-primary:hover{opacity:.85;background:var(--text);}
+.btn-icon{padding:3px 7px;font-size:13px;border:none;background:none;color:var(--text3);cursor:pointer;border-radius:4px;font-family:var(--sans);}
+.btn-icon:hover{background:var(--bg2);color:var(--text);}
+.btn-icon.danger:hover{background:var(--red-bg);color:var(--red);}
+
+#yamlEditor{flex:1;padding:14px;font-family:var(--mono);font-size:12px;line-height:1.65;border:none;outline:none;resize:none;background:var(--bg);color:var(--text);tab-size:2;}
+
+.gui-panel{padding:14px 16px;display:flex;flex-direction:column;gap:12px;}
+.section-card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;}
+.section-head{padding:9px 14px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg2);}
+.section-title{font-size:11px;font-weight:500;color:var(--text2);letter-spacing:.06em;text-transform:uppercase;}
+.section-body{padding:12px 14px;display:flex;flex-direction:column;gap:8px;}
+
+.field{display:flex;flex-direction:column;gap:3px;}
+.field-row{display:flex;gap:8px;}
+.field-row .field{flex:1;}
+label{font-size:11px;font-weight:500;color:var(--text2);}
+input,select,textarea{font-family:var(--sans);font-size:13px;padding:6px 9px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);outline:none;transition:border-color .15s;width:100%;}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);}
+textarea{resize:vertical;min-height:52px;line-height:1.5;}
+
+.ep-list{display:flex;flex-direction:column;gap:5px;}
+.ep-item{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.ep-item-header{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;user-select:none;}
+.ep-item-header:hover{background:var(--bg2);}
+.method-pill{font-size:10px;font-weight:500;padding:2px 7px;border-radius:4px;font-family:var(--mono);min-width:46px;text-align:center;}
+.ep-path{font-size:12px;font-family:var(--mono);color:var(--text);flex:1;}
+.ep-sum{font-size:11px;color:var(--text2);}
+.ep-acts{display:flex;gap:2px;opacity:0;transition:opacity .15s;}
+.ep-item-header:hover .ep-acts{opacity:1;}
+.ep-body{border-top:0.5px solid var(--border);padding:12px 14px;background:var(--bg2);display:none;}
+.ep-body.open{display:block;}
+
+.mini-list{display:flex;flex-direction:column;gap:4px;margin-top:5px;}
+.mini-row{display:flex;align-items:center;gap:7px;background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:6px 9px;}
+.mini-tag{font-size:10px;padding:1px 6px;border-radius:3px;font-family:var(--mono);white-space:nowrap;}
+.mini-name{font-size:12px;font-family:var(--mono);color:var(--text);}
+.mini-desc{font-size:11px;color:var(--text2);flex:1;}
+.mini-acts{display:flex;opacity:0;transition:opacity .15s;}
+.mini-row:hover .mini-acts{opacity:1;}
+
+.add-form{background:var(--bg);border:0.5px dashed var(--border2);border-radius:var(--radius);padding:10px 12px;display:none;flex-direction:column;gap:8px;margin-top:4px;}
+.add-form.open{display:flex;}
+.form-footer{display:flex;gap:6px;justify-content:flex-end;}
+.chevron{font-size:10px;color:var(--text3);transition:transform .2s;margin-left:auto;}
+.chevron.open{transform:rotate(90deg);}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:100;}
+.modal{background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:20px;width:340px;display:flex;flex-direction:column;gap:12px;}
+.modal-title{font-size:14px;font-weight:500;}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;}
+
+/* PREVIEW */
+.preview-pane{padding:14px 16px;}
+.spec-title-p{font-size:18px;font-weight:500;margin-bottom:3px;}
+.spec-desc-p{font-size:13px;color:var(--text2);line-height:1.5;}
+.spec-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.pill{font-size:11px;padding:2px 8px;border-radius:4px;background:var(--bg2);color:var(--text2);border:0.5px solid var(--border);font-family:var(--mono);}
+.sec-label{font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin:18px 0 5px;}
+.ep-card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);margin-bottom:5px;overflow:hidden;}
+.ep-head-p{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;}
+.ep-head-p:hover{background:var(--bg2);}
+.ep-body-p{border-top:0.5px solid var(--border);padding:11px 12px;background:var(--bg2);display:none;}
+.ep-body-p.open{display:block;}
+.sub-lbl{font-size:11px;font-weight:500;color:var(--text2);margin:8px 0 4px;}
+.pt{width:100%;font-size:11px;border-collapse:collapse;}
+.pt td{padding:3px 0;vertical-align:top;}
+.pt td:first-child{font-family:var(--mono);padding-right:10px;white-space:nowrap;}
+.pt td:last-child{color:var(--text2);}
+.rq{font-size:10px;padding:1px 6px;border-radius:3px;background:var(--green-bg);color:var(--green);}
+.op{font-size:10px;padding:1px 6px;border-radius:3px;background:var(--bg);color:var(--text3);border:0.5px solid var(--border);}
+.resps{display:flex;gap:5px;flex-wrap:wrap;margin-top:3px;}
+.rb{font-size:11px;padding:2px 8px;border-radius:4px;font-family:var(--mono);}
+.sc{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);margin-bottom:5px;overflow:hidden;}
+.sh{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;}
+.sh:hover{background:var(--bg2);}
+.sb{border-top:0.5px solid var(--border);padding:10px 12px;background:var(--bg2);display:none;}
+.sb.open{display:block;}
+.divider{height:0.5px;background:var(--border);margin:14px 0 3px;}
+.empty{text-align:center;padding:32px 16px;color:var(--text3);font-size:13px;}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">API Spec Editor</span>
+  <span class="badge">OpenAPI 3.0</span>
+  <div id="specSwitcher"></div>
+  <div class="header-spacer"></div>
+  <span id="saveStatus"></span>
+  <div class="header-right">
+    <button class="btn" onclick="importFile()">Importer .yaml</button>
+    <button class="btn" onclick="copyYaml()">Kopier YAML</button>
+    <button class="btn" onclick="openSwagger()">Swagger UI ↗</button>
+    <button class="btn btn-primary" onclick="saveFile()">Last ned .yaml</button>
+  </div>
+</header>
+
+<!-- New spec modal -->
+<div id="newSpecModal" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <div class="modal-title">Ny API-spec</div>
+    <div class="field"><label>Navn på spec</label><input id="modal-name" placeholder="Eiendom API" onkeydown="if(event.key==='Enter')createNewSpec()"></div>
+    <div class="field"><label>Versjon</label><input id="modal-version" placeholder="1.0.0"></div>
+    <div class="field"><label>Base URL</label><input id="modal-url" placeholder="https://api.eksempel.no/v1"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">Avbryt</button>
+      <button class="btn btn-primary" onclick="createNewSpec()">Opprett</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete spec modal -->
+<div id="deleteSpecModal" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <div class="modal-title">Slett spec</div>
+    <div style="font-size:13px;color:var(--text2);">Er du sikker på at du vil slette <strong id="deleteSpecName"></strong>? Dette kan ikke angres.</div>
+    <div class="modal-footer">
+      <button class="btn" onclick="document.getElementById('deleteSpecModal').style.display='none'">Avbryt</button>
+      <button class="btn" style="color:var(--red);border-color:var(--red-bg);" onclick="confirmDeleteSpec()">Slett</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileImport" accept=".yaml,.yml,.json" style="display:none;" onchange="handleImport(event)">
+
+<main>
+  <div class="left-col">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('gui')">Visuell editor</button>
+      <button class="tab" onclick="switchTab('yaml')">YAML</button>
+    </div>
+    <div id="guiPane" class="pane">
+      <div class="gui-panel">
+        <div class="section-card">
+          <div class="section-head">
+            <span class="section-title">API-info</span>
+            <button class="btn" style="color:var(--red);border-color:var(--red-bg);font-size:11px;" onclick="promptDeleteSpec()">Slett spec</button>
+          </div>
+          <div class="section-body">
+            <div class="field-row">
+              <div class="field"><label>Tittel</label><input id="g-title" placeholder="Mitt API" oninput="guiChanged()"></div>
+              <div class="field" style="max-width:90px;"><label>Versjon</label><input id="g-version" placeholder="1.0.0" oninput="guiChanged()"></div>
+            </div>
+            <div class="field"><label>Beskrivelse</label><textarea id="g-desc" rows="2" placeholder="Hva gjør dette APIet?" oninput="guiChanged()"></textarea></div>
+            <div class="field"><label>Base URL</label><input id="g-url" placeholder="https://api.eksempel.no/v1" oninput="guiChanged()"></div>
+          </div>
+        </div>
+        <div class="section-card">
+          <div class="section-head">
+            <span class="section-title">Endepunkter</span>
+            <button class="btn" onclick="toggleForm('addEpForm')">+ Legg til</button>
+          </div>
+          <div class="section-body">
+            <div id="addEpForm" class="add-form">
+              <div class="field-row">
+                <div class="field" style="max-width:100px;"><label>Metode</label>
+                  <select id="new-method"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select></div>
+                <div class="field"><label>Sti</label><input id="new-path" placeholder="/ressurs/{id}"></div>
+              </div>
+              <div class="field-row">
+                <div class="field"><label>Gruppe / tag</label><input id="new-tag" placeholder="Ressurser"></div>
+                <div class="field"><label>Kort beskrivelse</label><input id="new-summary" placeholder="Hent ressurs"></div>
+              </div>
+              <div class="field"><label>Detaljert beskrivelse</label><textarea id="new-desc" rows="2" placeholder="Valgfri..."></textarea></div>
+              <div class="form-footer">
+                <button class="btn" onclick="toggleForm('addEpForm')">Avbryt</button>
+                <button class="btn btn-primary" onclick="addEndpoint()">Legg til endepunkt</button>
+              </div>
+            </div>
+            <div id="epList" class="ep-list"></div>
+          </div>
+        </div>
+        <div class="section-card">
+          <div class="section-head">
+            <span class="section-title">Datamodeller</span>
+            <button class="btn" onclick="toggleForm('addSchemaForm')">+ Legg til</button>
+          </div>
+          <div class="section-body">
+            <div id="addSchemaForm" class="add-form">
+              <div class="field"><label>Modellnavn</label><input id="new-schema-name" placeholder="Eiendom"></div>
+              <div class="form-footer">
+                <button class="btn" onclick="toggleForm('addSchemaForm')">Avbryt</button>
+                <button class="btn btn-primary" onclick="addSchema()">Legg til modell</button>
+              </div>
+            </div>
+            <div id="schemaList" class="ep-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="yamlPane" class="pane" style="display:none;flex-direction:column;">
+      <textarea id="yamlEditor" spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <div class="right-col">
+    <div class="tabs" style="pointer-events:none;">
+      <div class="tab active" style="cursor:default;">Forhåndsvisning</div>
+    </div>
+    <div id="preview" class="pane preview-pane"></div>
+  </div>
+</main>
+
+<script>
+// ── Constants ─────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'api-spec-editor-v1';
+const MC = {
+  GET:{text:'#1D9E75',bg:'rgba(29,158,117,0.12)'},
+  POST:{text:'#185FA5',bg:'rgba(24,95,165,0.12)'},
+  PUT:{text:'#BA7517',bg:'rgba(186,117,23,0.12)'},
+  PATCH:{text:'#BA7517',bg:'rgba(186,117,23,0.12)'},
+  DELETE:{text:'#A32D2D',bg:'rgba(163,45,45,0.12)'},
+};
+
+function uid(){return Math.random().toString(36).slice(2,9);}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function toggleForm(id){const el=document.getElementById(id);if(el)el.classList.toggle('open');}
+
+// ── Default spec factory ──────────────────────────────────────────────────────
+function newSpec(title='Ny API-spec', version='1.0.0', server='') {
+  return {
+    id: uid(),
+    info: { title, version, description: '' },
+    server,
+    endpoints: [],
+    schemas: []
+  };
+}
+
+function exampleSpec() {
+  const s = newSpec('Eiendom API', '1.0.0', 'https://api.eksempel.no/v1');
+  s.info.description = 'API for oppslag av eiendom basert på matrikkelnummer og adresse';
+  s.endpoints = [
+    { id:uid(), method:'GET', path:'/eiendom', tag:'Eiendom', summary:'Søk etter eiendom', description:'Finn eiendom basert på matrikkelnummer eller adresse',
+      params:[
+        {id:uid(),name:'matrikkelnummer',in:'query',required:false,type:'string',description:'Format: kommunenr-gnr-bnr-fnr-snr',example:'4624-61-200-0-1'},
+        {id:uid(),name:'adresse',in:'query',required:false,type:'string',description:'Fritekstadresse for fuzzy-søk',example:'Storestraumen 121'}
+      ],
+      responses:[{id:uid(),code:'200',description:'Liste med treff'},{id:uid(),code:'400',description:'Ugyldig forespørsel'},{id:uid(),code:'404',description:'Ingen treff'}]
+    },
+    { id:uid(), method:'GET', path:'/eiendom/{matrikkelnummer}', tag:'Eiendom', summary:'Hent eiendom', description:'Hent full informasjon om én eiendom',
+      params:[{id:uid(),name:'matrikkelnummer',in:'path',required:true,type:'string',description:'',example:'4624-61-200-0-1'}],
+      responses:[{id:uid(),code:'200',description:'Eiendom funnet'},{id:uid(),code:'404',description:'Eiendom ikke funnet'}]
+    },
+    { id:uid(), method:'GET', path:'/eiendom/{matrikkelnummer}/adresser', tag:'Adresse', summary:'Hent adresser for eiendom', description:'Returnerer alle adresser inkl. seksjoner',
+      params:[{id:uid(),name:'matrikkelnummer',in:'path',required:true,type:'string',description:'',example:''}],
+      responses:[{id:uid(),code:'200',description:'Liste med adresser'},{id:uid(),code:'404',description:'Ingen adresser funnet'}]
+    }
+  ];
+  s.schemas = [
+    { id:uid(), name:'Eiendom', fields:[
+      {id:uid(),name:'matrikkelnummer',type:'string',example:'4624-61-200-0-1'},
+      {id:uid(),name:'kommunenavn',type:'string',example:'Bjørnafjorden'},
+      {id:uid(),name:'gnr',type:'integer',example:'61'},
+      {id:uid(),name:'bnr',type:'integer',example:'200'},
+      {id:uid(),name:'snr',type:'integer',example:'1'}
+    ]},
+    { id:uid(), name:'Adresse', fields:[
+      {id:uid(),name:'adressetekst',type:'string',example:'Storestraumen 121'},
+      {id:uid(),name:'postnummer',type:'string',example:'5430'},
+      {id:uid(),name:'poststed',type:'string',example:'Bremnes'}
+    ]}
+  ];
+  return s;
+}
+
+// ── Storage ───────────────────────────────────────────────────────────────────
+function loadStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return null;
+}
+
+function saveStorage() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ specs, activeSpecId }));
+    showSaveStatus();
+  } catch(e) {
+    console.warn('localStorage full or unavailable', e);
+  }
+}
+
+let saveTimer;
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveStorage, 600);
+}
+
+function showSaveStatus() {
+  const el = document.getElementById('saveStatus');
+  el.textContent = 'Lagret';
+  el.style.background = 'var(--green-bg)';
+  el.style.color = 'var(--green)';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.textContent = ''; el.style.background = 'none'; }, 2000);
+}
+
+// ── App state ─────────────────────────────────────────────────────────────────
+let specs = [];
+let activeSpecId = null;
+let openEps = new Set(), openSchemas = new Set(), openPrevs = new Set();
+let activeTab = 'gui';
+
+function activeSpec() { return specs.find(s => s.id === activeSpecId) || specs[0]; }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(function init() {
+  const saved = loadStorage();
+  if (saved && saved.specs && saved.specs.length) {
+    specs = saved.specs;
+    activeSpecId = saved.activeSpecId || specs[0].id;
+  } else {
+    const s = exampleSpec();
+    specs = [s];
+    activeSpecId = s.id;
+  }
+  renderAll();
+})();
+
+// ── Spec management ───────────────────────────────────────────────────────────
+function renderSpecSwitcher() {
+  const sw = document.getElementById('specSwitcher');
+  sw.innerHTML = specs.map(s =>
+    `<button class="spec-tab ${s.id===activeSpecId?'active':''}" onclick="switchSpec('${s.id}')" title="${esc(s.info.title)}">${esc(s.info.title)}</button>`
+  ).join('') + `<button class="spec-tab-add" onclick="showNewSpecModal()" title="Ny spec">+</button>`;
+}
+
+function switchSpec(id) {
+  activeSpecId = id;
+  openEps = new Set(); openSchemas = new Set(); openPrevs = new Set();
+  renderAll();
+  saveStorage();
+}
+
+function showNewSpecModal() {
+  document.getElementById('modal-name').value = '';
+  document.getElementById('modal-version').value = '1.0.0';
+  document.getElementById('modal-url').value = '';
+  document.getElementById('newSpecModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('modal-name').focus(), 50);
+}
+
+function closeModal() { document.getElementById('newSpecModal').style.display = 'none'; }
+
+function createNewSpec() {
+  const name = document.getElementById('modal-name').value.trim() || 'Ny spec';
+  const version = document.getElementById('modal-version').value.trim() || '1.0.0';
+  const url = document.getElementById('modal-url').value.trim();
+  const s = newSpec(name, version, url);
+  specs.push(s);
+  activeSpecId = s.id;
+  openEps = new Set(); openSchemas = new Set(); openPrevs = new Set();
+  closeModal();
+  renderAll();
+  saveStorage();
+}
+
+function promptDeleteSpec() {
+  const spec = activeSpec();
+  document.getElementById('deleteSpecName').textContent = spec.info.title;
+  document.getElementById('deleteSpecModal').style.display = 'flex';
+}
+
+function confirmDeleteSpec() {
+  if (specs.length === 1) { alert('Du kan ikke slette den eneste spec-en. Opprett en ny først.'); return; }
+  specs = specs.filter(s => s.id !== activeSpecId);
+  activeSpecId = specs[0].id;
+  openEps = new Set(); openSchemas = new Set(); openPrevs = new Set();
+  document.getElementById('deleteSpecModal').style.display = 'none';
+  renderAll();
+  saveStorage();
+}
+
+// ── Build YAML ────────────────────────────────────────────────────────────────
+function buildYaml(spec) {
+  spec = spec || activeSpec();
+  const out = { openapi:'3.0.3', info:{}, servers:[], paths:{}, components:{schemas:{}} };
+  out.info.title = spec.info.title || 'API';
+  out.info.version = spec.info.version || '1.0.0';
+  if (spec.info.description) out.info.description = spec.info.description;
+  if (spec.server) out.servers.push({ url: spec.server, description: 'Produksjon' });
+  const tags = [...new Set(spec.endpoints.map(e=>e.tag).filter(Boolean))];
+  if (tags.length) out.tags = tags.map(t=>({name:t}));
+  spec.endpoints.forEach(ep => {
+    if (!out.paths[ep.path]) out.paths[ep.path] = {};
+    const op = {};
+    if (ep.tag) op.tags = [ep.tag];
+    if (ep.summary) op.summary = ep.summary;
+    if (ep.description) op.description = ep.description;
+    if (ep.params.length) op.parameters = ep.params.map(p => {
+      const pm = { name:p.name, in:p.in, required:!!(p.required||p.in==='path') };
+      if (p.description) pm.description = p.description;
+      pm.schema = { type: p.type||'string' };
+      if (p.example) pm.schema.example = p.example;
+      return pm;
+    });
+    op.responses = {};
+    ep.responses.forEach(r => { op.responses[r.code] = { description: r.description }; });
+    out.paths[ep.path][ep.method.toLowerCase()] = op;
+  });
+  spec.schemas.forEach(s => {
+    const props = {};
+    s.fields.forEach(f => {
+      props[f.name] = { type: f.type||'string' };
+      if (f.example) props[f.name].example = f.type==='integer' ? Number(f.example) : f.example;
+    });
+    out.components.schemas[s.name] = { type:'object', properties:props };
+  });
+  if (!Object.keys(out.components.schemas).length) delete out.components;
+  return jsyaml.dump(out, { indent:2, lineWidth:120 });
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===(tab==='gui'?0:1)));
+  document.getElementById('guiPane').style.display = tab==='gui' ? '' : 'none';
+  document.getElementById('yamlPane').style.display = tab==='yaml' ? 'flex' : 'none';
+  if (tab==='yaml') document.getElementById('yamlEditor').value = buildYaml();
+}
+
+// ── Info ──────────────────────────────────────────────────────────────────────
+function populateInfo() {
+  const spec = activeSpec();
+  document.getElementById('g-title').value = spec.info.title || '';
+  document.getElementById('g-version').value = spec.info.version || '';
+  document.getElementById('g-desc').value = spec.info.description || '';
+  document.getElementById('g-url').value = spec.server || '';
+}
+
+function guiChanged() {
+  const spec = activeSpec();
+  spec.info.title = document.getElementById('g-title').value;
+  spec.info.version = document.getElementById('g-version').value;
+  spec.info.description = document.getElementById('g-desc').value;
+  spec.server = document.getElementById('g-url').value;
+  renderSpecSwitcher();
+  renderPreview();
+  if (activeTab==='yaml') document.getElementById('yamlEditor').value = buildYaml();
+  scheduleSave();
+}
+
+// ── Endpoint list ─────────────────────────────────────────────────────────────
+function renderEpList() {
+  const spec = activeSpec();
+  document.getElementById('epList').innerHTML = spec.endpoints.length === 0
+    ? '<div class="empty">Ingen endepunkter ennå. Klikk "+ Legg til".</div>'
+    : spec.endpoints.map(ep => {
+        const col = MC[ep.method]||{text:'#888',bg:'rgba(136,136,136,0.1)'};
+        const open = openEps.has(ep.id);
+        return `<div class="ep-item">
+          <div class="ep-item-header" onclick="toggleEp('${ep.id}')">
+            <span class="method-pill" style="color:${col.text};background:${col.bg};">${ep.method}</span>
+            <span class="ep-path">${ep.path||'/'}</span>
+            <span class="ep-sum">${ep.summary||''}</span>
+            <div class="ep-acts" onclick="event.stopPropagation()">
+              <button class="btn-icon" onclick="moveEp('${ep.id}',-1)" title="Opp">↑</button>
+              <button class="btn-icon" onclick="moveEp('${ep.id}',1)" title="Ned">↓</button>
+              <button class="btn-icon danger" onclick="deleteEp('${ep.id}')" title="Slett">✕</button>
+            </div>
+            <span class="chevron ${open?'open':''}">▶</span>
+          </div>
+          <div class="ep-body ${open?'open':''}" id="epb-${ep.id}">${open?renderEpBody(ep):''}</div>
+        </div>`;
+      }).join('');
+}
+
+function renderEpBody(ep) {
+  return `<div style="display:flex;flex-direction:column;gap:10px;">
+    <div class="field-row">
+      <div class="field" style="max-width:100px;"><label>Metode</label>
+        <select onchange="updateEp('${ep.id}','method',this.value)">
+          ${['GET','POST','PUT','PATCH','DELETE'].map(m=>`<option${ep.method===m?' selected':''}>${m}</option>`).join('')}
+        </select></div>
+      <div class="field"><label>Sti</label><input value="${esc(ep.path)}" oninput="updateEp('${ep.id}','path',this.value)"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Gruppe / tag</label><input value="${esc(ep.tag||'')}" oninput="updateEp('${ep.id}','tag',this.value)"></div>
+      <div class="field"><label>Kort beskrivelse</label><input value="${esc(ep.summary||'')}" oninput="updateEp('${ep.id}','summary',this.value)"></div>
+    </div>
+    <div class="field"><label>Detaljert beskrivelse</label>
+      <textarea rows="2" oninput="updateEp('${ep.id}','description',this.value)">${esc(ep.description||'')}</textarea>
+    </div>
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <label>Parametere</label>
+        <button class="btn" style="font-size:11px;padding:3px 8px;" onclick="toggleForm('apf-${ep.id}')">+ Parameter</button>
+      </div>
+      <div id="apf-${ep.id}" class="add-form">
+        <div class="field-row">
+          <div class="field"><label>Navn</label><input id="np-n-${ep.id}" placeholder="id"></div>
+          <div class="field" style="max-width:90px;"><label>Plassering</label>
+            <select id="np-i-${ep.id}"><option>query</option><option>path</option><option>header</option></select></div>
+          <div class="field" style="max-width:85px;"><label>Type</label>
+            <select id="np-t-${ep.id}"><option>string</option><option>integer</option><option>number</option><option>boolean</option></select></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Beskrivelse</label><input id="np-d-${ep.id}" placeholder="Valgfri..."></div>
+          <div class="field" style="max-width:120px;"><label>Eksempel</label><input id="np-e-${ep.id}" placeholder="eks: 123"></div>
+          <div class="field" style="max-width:80px;flex-direction:row;align-items:center;gap:6px;padding-top:19px;">
+            <input type="checkbox" id="np-r-${ep.id}" style="width:auto;"><label for="np-r-${ep.id}">Påkrevd</label>
+          </div>
+        </div>
+        <div class="form-footer">
+          <button class="btn" onclick="toggleForm('apf-${ep.id}')">Avbryt</button>
+          <button class="btn btn-primary" onclick="addParam('${ep.id}')">Legg til</button>
+        </div>
+      </div>
+      <div class="mini-list">${ep.params.map(p => {
+        const req = p.required||p.in==='path';
+        return `<div class="mini-row">
+          <span class="mini-tag" style="${req?'background:var(--green-bg);color:var(--green);':'background:var(--bg2);color:var(--text3);'}">${p.in}</span>
+          <span class="mini-name">${p.name}</span>
+          <span class="mini-tag" style="background:var(--bg2);color:var(--text3);">${p.type||'string'}</span>
+          <span class="mini-desc">${p.description||''}${p.example?` <span style="color:var(--text3);font-size:10px;">(${p.example})</span>`:''}</span>
+          <div class="mini-acts"><button class="btn-icon danger" onclick="deleteParam('${ep.id}','${p.id}')">✕</button></div>
+        </div>`;
+      }).join('')}</div>
+    </div>
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <label>Responser</label>
+        <button class="btn" style="font-size:11px;padding:3px 8px;" onclick="toggleForm('arf-${ep.id}')">+ Respons</button>
+      </div>
+      <div id="arf-${ep.id}" class="add-form">
+        <div class="field-row">
+          <div class="field" style="max-width:90px;"><label>HTTP-kode</label><input id="nr-c-${ep.id}" placeholder="200" maxlength="3"></div>
+          <div class="field"><label>Beskrivelse</label><input id="nr-d-${ep.id}" placeholder="Vellykket"></div>
+        </div>
+        <div class="form-footer">
+          <button class="btn" onclick="toggleForm('arf-${ep.id}')">Avbryt</button>
+          <button class="btn btn-primary" onclick="addResp('${ep.id}')">Legg til</button>
+        </div>
+      </div>
+      <div class="mini-list">${ep.responses.map(r => {
+        const ok=r.code.startsWith('2'),err=r.code.startsWith('4')||r.code.startsWith('5');
+        const s=ok?'background:var(--green-bg);color:var(--green);':err?'background:var(--red-bg);color:var(--red);':'background:var(--bg2);color:var(--text2);';
+        return `<div class="mini-row">
+          <span class="mini-tag" style="${s}">${r.code}</span>
+          <span class="mini-desc" style="font-family:var(--sans);">${r.description}</span>
+          <div class="mini-acts"><button class="btn-icon danger" onclick="deleteResp('${ep.id}','${r.id}')">✕</button></div>
+        </div>`;
+      }).join('')}</div>
+    </div>
+  </div>`;
+}
+
+function toggleEp(id) {
+  openEps.has(id) ? openEps.delete(id) : openEps.add(id);
+  renderEpList();
+  if (openEps.has(id)) {
+    const ep = activeSpec().endpoints.find(e=>e.id===id);
+    if (ep) document.getElementById('epb-'+id).innerHTML = renderEpBody(ep);
+  }
+}
+
+function updateEp(id, field, value) {
+  const ep = activeSpec().endpoints.find(e=>e.id===id);
+  if (ep) { ep[field]=value; renderPreview(); if(activeTab==='yaml') document.getElementById('yamlEditor').value=buildYaml(); scheduleSave(); }
+}
+
+function deleteEp(id) {
+  const spec = activeSpec();
+  spec.endpoints = spec.endpoints.filter(e=>e.id!==id);
+  openEps.delete(id);
+  renderEpList(); renderPreview(); scheduleSave();
+}
+
+function moveEp(id, dir) {
+  const eps = activeSpec().endpoints;
+  const i=eps.findIndex(e=>e.id===id), j=i+dir;
+  if(j<0||j>=eps.length) return;
+  [eps[i],eps[j]]=[eps[j],eps[i]];
+  renderEpList(); scheduleSave();
+}
+
+function addEndpoint() {
+  const path = document.getElementById('new-path').value.trim();
+  if (!path) { alert('Sti er påkrevd'); return; }
+  const ep = { id:uid(), method:document.getElementById('new-method').value, path,
+    tag:document.getElementById('new-tag').value.trim(),
+    summary:document.getElementById('new-summary').value.trim(),
+    description:document.getElementById('new-desc').value.trim(),
+    params:[], responses:[{id:uid(),code:'200',description:'Vellykket'}]
+  };
+  activeSpec().endpoints.push(ep);
+  ['new-path','new-tag','new-summary','new-desc'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('addEpForm').classList.remove('open');
+  openEps.add(ep.id);
+  renderEpList(); renderPreview(); scheduleSave();
+  setTimeout(()=>{ const b=document.getElementById('epb-'+ep.id); if(b) b.innerHTML=renderEpBody(ep); },30);
+}
+
+// ── Params ────────────────────────────────────────────────────────────────────
+function addParam(epId) {
+  const name = document.getElementById('np-n-'+epId).value.trim();
+  if (!name) { alert('Navn er påkrevd'); return; }
+  const ep = activeSpec().endpoints.find(e=>e.id===epId);
+  ep.params.push({id:uid(),name,in:document.getElementById('np-i-'+epId).value,type:document.getElementById('np-t-'+epId).value,
+    description:document.getElementById('np-d-'+epId).value.trim(),example:document.getElementById('np-e-'+epId).value.trim(),
+    required:document.getElementById('np-r-'+epId).checked});
+  ['np-n-','np-d-','np-e-'].forEach(p=>{document.getElementById(p+epId).value='';});
+  document.getElementById('np-r-'+epId).checked=false;
+  refreshEpBody(epId); renderPreview(); scheduleSave();
+}
+
+function deleteParam(epId, pid) {
+  const ep = activeSpec().endpoints.find(e=>e.id===epId);
+  ep.params = ep.params.filter(p=>p.id!==pid);
+  refreshEpBody(epId); renderPreview(); scheduleSave();
+}
+
+// ── Responses ─────────────────────────────────────────────────────────────────
+function addResp(epId) {
+  const code = document.getElementById('nr-c-'+epId).value.trim();
+  if (!code) { alert('HTTP-kode er påkrevd'); return; }
+  const ep = activeSpec().endpoints.find(e=>e.id===epId);
+  ep.responses.push({id:uid(),code,description:document.getElementById('nr-d-'+epId).value.trim()});
+  document.getElementById('nr-c-'+epId).value=''; document.getElementById('nr-d-'+epId).value='';
+  refreshEpBody(epId); renderPreview(); scheduleSave();
+}
+
+function deleteResp(epId, rid) {
+  const ep = activeSpec().endpoints.find(e=>e.id===epId);
+  ep.responses = ep.responses.filter(r=>r.id!==rid);
+  refreshEpBody(epId); renderPreview(); scheduleSave();
+}
+
+function refreshEpBody(epId) {
+  const ep = activeSpec().endpoints.find(e=>e.id===epId);
+  const el = document.getElementById('epb-'+epId);
+  if (ep && el && openEps.has(epId)) el.innerHTML = renderEpBody(ep);
+}
+
+// ── Schemas ───────────────────────────────────────────────────────────────────
+function renderSchemaList() {
+  const spec = activeSpec();
+  document.getElementById('schemaList').innerHTML = spec.schemas.length === 0
+    ? '<div class="empty">Ingen datamodeller ennå. Klikk "+ Legg til".</div>'
+    : spec.schemas.map(s => {
+        const open = openSchemas.has(s.id);
+        return `<div class="ep-item">
+          <div class="ep-item-header" onclick="toggleSchema('${s.id}')">
+            <span class="method-pill" style="color:var(--purple);background:var(--purple-bg);">model</span>
+            <span class="ep-path">${s.name}</span>
+            <span class="ep-sum">${s.fields.length} felt</span>
+            <div class="ep-acts" onclick="event.stopPropagation()">
+              <button class="btn-icon danger" onclick="deleteSchema('${s.id}')">✕</button>
+            </div>
+            <span class="chevron ${open?'open':''}">▶</span>
+          </div>
+          <div class="ep-body ${open?'open':''}" id="sb-${s.id}">${open?renderSchemaBody(s):''}</div>
+        </div>`;
+      }).join('');
+}
+
+function renderSchemaBody(s) {
+  return `<div style="display:flex;flex-direction:column;gap:10px;">
+    <div class="field"><label>Modellnavn</label><input value="${esc(s.name)}" oninput="updateSchema('${s.id}','name',this.value)"></div>
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <label>Felter</label>
+        <button class="btn" style="font-size:11px;padding:3px 8px;" onclick="toggleForm('aff-${s.id}')">+ Felt</button>
+      </div>
+      <div id="aff-${s.id}" class="add-form">
+        <div class="field-row">
+          <div class="field"><label>Feltnavn</label><input id="nf-n-${s.id}" placeholder="id"></div>
+          <div class="field" style="max-width:100px;"><label>Type</label>
+            <select id="nf-t-${s.id}"><option>string</option><option>integer</option><option>number</option><option>boolean</option><option>array</option><option>object</option></select></div>
+          <div class="field"><label>Eksempel</label><input id="nf-e-${s.id}" placeholder="eks: abc123"></div>
+        </div>
+        <div class="form-footer">
+          <button class="btn" onclick="toggleForm('aff-${s.id}')">Avbryt</button>
+          <button class="btn btn-primary" onclick="addField('${s.id}')">Legg til</button>
+        </div>
+      </div>
+      <div class="mini-list">${s.fields.map(f=>`
+        <div class="mini-row">
+          <span class="mini-name">${f.name}</span>
+          <span class="mini-tag" style="background:var(--blue-bg);color:var(--blue);">${f.type}</span>
+          <span class="mini-desc">${f.example?'eks: '+f.example:''}</span>
+          <div class="mini-acts"><button class="btn-icon danger" onclick="deleteField('${s.id}','${f.id}')">✕</button></div>
+        </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleSchema(id) {
+  openSchemas.has(id) ? openSchemas.delete(id) : openSchemas.add(id);
+  renderSchemaList();
+  if (openSchemas.has(id)) {
+    const s = activeSpec().schemas.find(x=>x.id===id);
+    if (s) document.getElementById('sb-'+id).innerHTML = renderSchemaBody(s);
+  }
+}
+
+function updateSchema(id, field, value) {
+  const s = activeSpec().schemas.find(x=>x.id===id);
+  if (s) { s[field]=value; renderPreview(); scheduleSave(); }
+}
+
+function deleteSchema(id) {
+  activeSpec().schemas = activeSpec().schemas.filter(s=>s.id!==id);
+  openSchemas.delete(id);
+  renderSchemaList(); renderPreview(); scheduleSave();
+}
+
+function addSchema() {
+  const name = document.getElementById('new-schema-name').value.trim();
+  if (!name) { alert('Modellnavn er påkrevd'); return; }
+  const s = {id:uid(), name, fields:[]};
+  activeSpec().schemas.push(s);
+  document.getElementById('new-schema-name').value='';
+  document.getElementById('addSchemaForm').classList.remove('open');
+  openSchemas.add(s.id);
+  renderSchemaList(); renderPreview(); scheduleSave();
+  setTimeout(()=>{ const b=document.getElementById('sb-'+s.id); if(b) b.innerHTML=renderSchemaBody(s); },30);
+}
+
+function addField(sid) {
+  const name = document.getElementById('nf-n-'+sid).value.trim();
+  if (!name) { alert('Feltnavn er påkrevd'); return; }
+  const s = activeSpec().schemas.find(x=>x.id===sid);
+  s.fields.push({id:uid(),name,type:document.getElementById('nf-t-'+sid).value,example:document.getElementById('nf-e-'+sid).value.trim()});
+  document.getElementById('nf-n-'+sid).value=''; document.getElementById('nf-e-'+sid).value='';
+  const el=document.getElementById('sb-'+sid); if(el&&openSchemas.has(sid)) el.innerHTML=renderSchemaBody(s);
+  renderPreview(); scheduleSave();
+}
+
+function deleteField(sid, fid) {
+  const s = activeSpec().schemas.find(x=>x.id===sid);
+  s.fields = s.fields.filter(f=>f.id!==fid);
+  const el=document.getElementById('sb-'+sid); if(el&&openSchemas.has(sid)) el.innerHTML=renderSchemaBody(s);
+  renderPreview(); scheduleSave();
+}
+
+// ── Preview ───────────────────────────────────────────────────────────────────
+function togglePrev(id) {
+  openPrevs.has(id) ? openPrevs.delete(id) : openPrevs.add(id);
+  const el=document.getElementById('pv-'+id), ch=document.getElementById('pch-'+id);
+  if(el) el.classList.toggle('open');
+  if(ch) ch.classList.toggle('open');
+}
+
+function renderPreview() {
+  const spec = activeSpec();
+  const p = document.getElementById('preview');
+  let h = `<div class="spec-title-p">${spec.info.title||'Uten tittel'}</div>`;
+  if (spec.info.description) h+=`<div class="spec-desc-p">${spec.info.description}</div>`;
+  h+=`<div class="spec-meta">`;
+  if (spec.info.version) h+=`<span class="pill">v${spec.info.version}</span>`;
+  if (spec.server) h+=`<span class="pill">${spec.server}</span>`;
+  h+=`<span class="pill">${spec.endpoints.length} endepunkter</span>`;
+  h+=`</div>`;
+
+  const tags={};
+  spec.endpoints.forEach(ep=>{ const t=ep.tag||'Generelt'; if(!tags[t])tags[t]=[]; tags[t].push(ep); });
+
+  if (spec.endpoints.length===0) h+=`<div class="empty" style="margin-top:24px;">Ingen endepunkter ennå.</div>`;
+
+  Object.entries(tags).forEach(([tag,eps])=>{
+    h+=`<div class="sec-label">${tag}</div>`;
+    eps.forEach(ep=>{
+      const col=MC[ep.method]||{text:'#888',bg:'rgba(0,0,0,0.05)'};
+      const open=openPrevs.has(ep.id);
+      h+=`<div class="ep-card">
+        <div class="ep-head-p" onclick="togglePrev('${ep.id}')">
+          <span class="method-pill" style="color:${col.text};background:${col.bg};">${ep.method}</span>
+          <span style="font-size:13px;font-family:var(--mono);color:var(--text);flex:1;">${ep.path||'/'}</span>
+          <span style="font-size:12px;color:var(--text2);">${ep.summary||''}</span>
+          <span class="chevron ${open?'open':''}" id="pch-${ep.id}">▶</span>
+        </div>
+        <div class="ep-body-p ${open?'open':''}" id="pv-${ep.id}">`;
+      if(ep.description) h+=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.5;">${ep.description}</div>`;
+      if(ep.params.length){
+        h+=`<div class="sub-lbl">Parametere</div><table class="pt">`;
+        ep.params.forEach(p=>{
+          const req=p.required||p.in==='path';
+          h+=`<tr><td>${p.name}</td><td><span class="${req?'rq':'op'}">${req?'påkrevd':'valgfri'}</span></td>
+          <td style="color:var(--text3);font-family:var(--mono);padding:3px 10px 3px 8px;">${p.in}</td>
+          <td>${p.description||''}${p.example?` <span style="color:var(--text3);font-size:10px;font-family:var(--mono);">(${p.example})</span>`:''}</td></tr>`;
+        });
+        h+=`</table>`;
+      }
+      if(ep.responses.length){
+        h+=`<div class="sub-lbl">Responser</div><div class="resps">`;
+        ep.responses.forEach(r=>{
+          const ok=r.code.startsWith('2'),err=r.code.startsWith('4')||r.code.startsWith('5');
+          h+=`<span class="rb" style="background:${ok?'var(--green-bg)':err?'var(--red-bg)':'var(--bg2)'};color:${ok?'var(--green)':err?'var(--red)':'var(--text2)'};">${r.code} ${r.description}</span>`;
+        });
+        h+=`</div>`;
+      }
+      h+=`</div></div>`;
+    });
+  });
+
+  if(spec.schemas.length){
+    h+=`<div class="divider"></div><div class="sec-label">Datamodeller</div>`;
+    spec.schemas.forEach(s=>{
+      const open=openPrevs.has('s'+s.id);
+      h+=`<div class="sc">
+        <div class="sh" onclick="togglePrev('s${s.id}')">
+          <span style="font-size:13px;font-family:var(--mono);font-weight:500;flex:1;">${s.name}</span>
+          <span style="font-size:11px;color:var(--text3);">${s.fields.length} felt</span>
+          <span class="chevron ${open?'open':''}" id="pch-s${s.id}">▶</span>
+        </div>
+        <div class="sb ${open?'open':''}" id="pv-s${s.id}">
+          <table class="pt">${s.fields.map(f=>`<tr>
+            <td>${f.name}</td>
+            <td style="font-family:var(--mono);color:var(--blue);padding-right:10px;">${f.type}</td>
+            <td style="font-size:10px;font-family:var(--mono);color:var(--text3);">${f.example?'eks: '+f.example:''}</td>
+          </tr>`).join('')}</table>
+        </div>
+      </div>`;
+    });
+  }
+  p.innerHTML = h;
+}
+
+// ── Import / export ───────────────────────────────────────────────────────────
+function importFile() { document.getElementById('fileImport').click(); }
+
+function handleImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = jsyaml.load(e.target.result);
+      const s = newSpec(parsed.info?.title||file.name.replace(/\.(yaml|yml|json)$/,''), parsed.info?.version||'1.0.0', parsed.servers?.[0]?.url||'');
+      s.info.description = parsed.info?.description||'';
+      const paths = parsed.paths||{};
+      Object.entries(paths).forEach(([path,methods])=>{
+        ['get','post','put','patch','delete'].forEach(m=>{
+          if(!methods[m]) return;
+          const op=methods[m];
+          s.endpoints.push({id:uid(),method:m.toUpperCase(),path,tag:(op.tags&&op.tags[0])||'',
+            summary:op.summary||'',description:op.description||'',
+            params:(op.parameters||[]).map(p=>({id:uid(),name:p.name,in:p.in,required:!!p.required,
+              type:p.schema?.type||'string',description:p.description||'',example:p.schema?.example!=null?String(p.schema.example):''})),
+            responses:Object.entries(op.responses||{}).map(([code,r])=>({id:uid(),code,description:r.description||''}))
+          });
+        });
+      });
+      const schemas=parsed.components?.schemas||{};
+      Object.entries(schemas).forEach(([name,schema])=>{
+        s.schemas.push({id:uid(),name,fields:Object.entries(schema.properties||{}).map(([fn,fs])=>({
+          id:uid(),name:fn,type:fs.type||'string',example:fs.example!=null?String(fs.example):''
+        }))});
+      });
+      specs.push(s);
+      activeSpecId = s.id;
+      openEps=new Set(); openSchemas=new Set(); openPrevs=new Set();
+      renderAll();
+      saveStorage();
+    } catch(err) {
+      alert('Kunne ikke lese filen: '+err.message);
+    }
+    event.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+function copyYaml() {
+  navigator.clipboard.writeText(buildYaml()).then(()=>{
+    const b=event.target; b.textContent='Kopiert!';
+    setTimeout(()=>b.textContent='Kopier YAML',1500);
+  });
+}
+
+function saveFile() {
+  const blob=new Blob([buildYaml()],{type:'text/yaml'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=(activeSpec().info.title||'api-spec').toLowerCase().replace(/\s+/g,'-')+'.yaml';
+  a.click();
+}
+
+function openSwagger() {
+  window.open('https://editor.swagger.io/?url=data:text/yaml,'+encodeURIComponent(buildYaml()),'_blank');
+}
+
+// ── Render all ────────────────────────────────────────────────────────────────
+function renderAll() {
+  renderSpecSwitcher();
+  populateInfo();
+  renderEpList();
+  renderSchemaList();
+  renderPreview();
+  if (activeTab==='yaml') document.getElementById('yamlEditor').value = buildYaml();
+}
+</script>
+</body>
+</html>
