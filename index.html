@@ -297,8 +297,8 @@ function newSpec(title='Ny API-spec', version='1.0.0', server='') {
 }
 
 function exampleSpec() {
-  const s = newSpec('Eiendom API', '1.0.0', 'https://api.eksempel.no/v1');
-  s.info.description = 'API for oppslag av eiendom basert på matrikkelnummer og adresse';
+  const s = newSpec('Eiendomsmegler API', '1.0.0', 'https://api.eksempel.no/v1');
+  s.info.description = 'API for leverandører av eiendomsmeglersystemer';
   s.endpoints = [
     { id:uid(), method:'GET', path:'/eiendom', tag:'Eiendom', summary:'Søk etter eiendom', description:'Finn eiendom basert på matrikkelnummer eller adresse',
       params:[
