@@ -1,1 +1,1 @@
-Visible at [https://matsringstad.github.io/megler-api/]
+Visible at https://matsringstad.github.io/megler-api/
